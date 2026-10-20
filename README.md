@@ -1,75 +1,61 @@
-# React + TypeScript + Vite
+# Лабораторная работа № 1: Управление комментариями (Comments CRUD)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Клиентское веб-приложение для работы со списком комментариев пользователей (Вариант 7). Проект разработан на базе библиотеки **React**, языка **TypeScript** и утилитарного фреймворка **Tailwind CSS**. В качестве источника данных используется Mock API [DummyJSON](https://dummyjson.com/docs/comments).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Стек технологий
 
-## React Compiler
+* **React 19** (Functional Components, Hooks)
+* **TypeScript** (строгая типизация данных и пропсов)
+* **Vite** (сборщик и dev-сервер)
+* **Tailwind CSS** (стилизация интерфейса)
+* **DummyJSON API** (Mock REST API)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 📌 Реализованный функционал
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* **Просмотр комментариев (Read)**: получение списка комментариев с сервера, обработка состояний загрузки (`loading`) и ошибок (`error`).
+* **Добавление комментария (Create)**: отправка `POST`-запроса к API и добавление нового комментария в начало списка.
+* **Редактирование комментария (Update)**: возможность изменения текста комментария и ID поста через единую форму (с отправкой `PUT`-запроса).
+* **Удаление комментария (Delete)**: удаление комментария с предварительным подтверждением действия (`window.confirm`) и отправкой `DELETE`-запроса к API.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 📁 Структура проекта
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```text
+src/
+├── components/
+│   ├── CommentForm.tsx   # Форма создания и редактирования комментария
+│   └── CommentItem.tsx   # Карточка отображения комментария и кнопки действий
+├── types.ts              # Описание интерфейсов TypeScript (Comment, User, CommentFormData)
+├── App.tsx               # Главный компонент, управление состоянием и API-запросами
+└── main.tsx              # Точка входа в приложение
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🛠 Запуск проекта локально
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. **Клонирование репозитория:**
+   ```bash
+   git clone https://github.com/jokesss43/dev-client-web-applications.git
+   cd dev-client-web-applications
+   ```
 
-```
+2. **Установка зависимостей:**
+   ```bash
+   npm install
+   ```
+
+3. **Запуск сервера разработки:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Сборка для продакшена:**
+   ```bash
+   npm run build
+   ```
