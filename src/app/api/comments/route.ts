@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentsDirect, createCommentApi } from '@/services/comments';
+import { CreateCommentSchema } from '@/lib/validations/comment';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,22 +27,30 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Auth check
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Unauthorized: войдите в систему' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
-    if (!body.body || !body.username) {
+    // 2. Server Zod validation
+    const validation = CreateCommentSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Body and username are required' },
+        {
+          error: 'Validation error',
+          details: validation.error.flatten().fieldErrors,
+        },
         { status: 400 }
       );
     }
 
-    const created = await createCommentApi({
-      body: body.body,
-      postId: Number(body.postId) || 1,
-      username: body.username,
-      userId: Number(body.userId) || 5,
-    });
-
+    const created = await createCommentApi(validation.data);
     return NextResponse.json(created, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(

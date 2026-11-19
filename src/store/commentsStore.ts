@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import { Comment, CreateCommentInput, UpdateCommentInput } from '@/types/comment';
+import { Comment } from '@/types/comment';
+import { CreateCommentInput, UpdateCommentInput } from '@/lib/validations/comment';
 import { addCommentAction, editCommentAction, deleteCommentAction } from '@/actions/comments';
+import { AuthUser } from '@/lib/auth';
 
 interface CommentsState {
   comments: Comment[];
@@ -13,14 +15,16 @@ interface CommentsState {
   isMutating: boolean;
   error: string | null;
   editingComment: Comment | null;
+  currentUser: AuthUser | null;
 
   // Actions
   initializeComments: (initialComments: Comment[], total: number, skip: number, limit: number) => void;
+  setCurrentUser: (user: AuthUser | null) => void;
   setSearchQuery: (query: string) => void;
   setEditingComment: (comment: Comment | null) => void;
   loadMoreComments: () => Promise<void>;
-  addComment: (input: CreateCommentInput) => Promise<{ success: boolean; error?: string }>;
-  editComment: (input: UpdateCommentInput) => Promise<{ success: boolean; error?: string }>;
+  addComment: (input: CreateCommentInput) => Promise<{ success: boolean; error?: string; validationErrors?: Record<string, string[]> }>;
+  editComment: (input: UpdateCommentInput) => Promise<{ success: boolean; error?: string; validationErrors?: Record<string, string[]> }>;
   deleteComment: (id: number) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -35,6 +39,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   isMutating: false,
   error: null,
   editingComment: null,
+  currentUser: null,
 
   initializeComments: (initialComments, total, skip, limit) => {
     set({
@@ -47,6 +52,7 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     });
   },
 
+  setCurrentUser: (currentUser) => set({ currentUser }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setEditingComment: (editingComment) => set({ editingComment }),
 
@@ -57,14 +63,12 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     set({ isLoadingMore: true, error: null });
 
     try {
-      // Use Route Handler for client-side pagination / infinite query
       const res = await fetch(`/api/comments?limit=${limit}&skip=${skip}`);
       if (!res.ok) throw new Error('Ошибка при загрузке дополнительных комментариев');
 
       const data = await res.json();
       const newItems: Comment[] = data.comments;
 
-      // Avoid duplicates
       const existingIds = new Set(comments.map((c) => c.id));
       const filteredNew = newItems.filter((c) => !existingIds.has(c.id));
 
@@ -86,7 +90,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   addComment: async (input) => {
     set({ isMutating: true, error: null });
 
-    // Optimistic comment creation
     const tempId = Date.now();
     const optimisticComment: Comment = {
       id: tempId,
@@ -107,21 +110,22 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     }));
 
     try {
-      // Call Server Action
       const result = await addCommentAction(input);
 
       if (!result.success || !result.comment) {
-        // Rollback optimistic update on failure
         set((state) => ({
           comments: state.comments.filter((c) => c.id !== tempId),
           total: state.total - 1,
           isMutating: false,
           error: result.error || 'Не удалось создать комментарий',
         }));
-        return { success: false, error: result.error };
+        return {
+          success: false,
+          error: result.error,
+          validationErrors: (result as any).validationErrors,
+        };
       }
 
-      // Replace optimistic item with server result
       set((state) => ({
         comments: state.comments.map((c) => (c.id === tempId ? result.comment! : c)),
         isMutating: false,
@@ -129,7 +133,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
 
       return { success: true };
     } catch (err: any) {
-      // Rollback
       set((state) => ({
         comments: state.comments.filter((c) => c.id !== tempId),
         total: state.total - 1,
@@ -145,7 +148,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     const { comments } = get();
     const original = comments.find((c) => c.id === input.id);
 
-    // Optimistic update
     set((state) => ({
       comments: state.comments.map((c) =>
         c.id === input.id
@@ -166,7 +168,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     try {
       const result = await editCommentAction(input);
       if (!result.success) {
-        // Rollback
         if (original) {
           set((state) => ({
             comments: state.comments.map((c) => (c.id === input.id ? original : c)),
@@ -174,7 +175,11 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
             error: result.error,
           }));
         }
-        return { success: false, error: result.error };
+        return {
+          success: false,
+          error: result.error,
+          validationErrors: (result as any).validationErrors,
+        };
       }
 
       set({ isMutating: false });
@@ -196,7 +201,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     const { comments } = get();
     const original = comments.find((c) => c.id === id);
 
-    // Optimistic deletion
     set((state) => ({
       comments: state.comments.filter((c) => c.id !== id),
       total: Math.max(0, state.total - 1),
@@ -205,7 +209,6 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     try {
       const result = await deleteCommentAction(id);
       if (!result.success) {
-        // Rollback
         if (original) {
           set((state) => ({
             comments: [original, ...state.comments],

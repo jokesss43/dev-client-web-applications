@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCommentByIdDirect, updateCommentApi, deleteCommentApi } from '@/services/comments';
+import { UpdateCommentSchema } from '@/lib/validations/comment';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(
   _request: NextRequest,
@@ -32,16 +34,27 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Unauthorized (401)' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
 
-    const updated = await updateCommentApi({
+    const validation = UpdateCommentSchema.safeParse({
+      ...body,
       id: Number(id),
-      body: body.body,
-      postId: body.postId ? Number(body.postId) : undefined,
-      username: body.username,
     });
 
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Validation error', details: validation.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const updated = await updateCommentApi(validation.data);
     return NextResponse.json(updated);
   } catch (error: any) {
     return NextResponse.json(
@@ -56,6 +69,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Unauthorized (401)' }, { status: 401 });
+    }
+
+    if (currentUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Forbidden: только администратор может удалять комментарии (403)' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     await deleteCommentApi(Number(id));
     return NextResponse.json({ success: true, id: Number(id) });

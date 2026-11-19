@@ -1,9 +1,9 @@
-import { Comment, CommentsApiResponse, CreateCommentInput, UpdateCommentInput } from '@/types/comment';
+import { Comment, CommentsApiResponse } from '@/types/comment';
+import { CreateCommentInput, UpdateCommentInput, DummyJsonCommentsResponseSchema, DummyJsonCommentSchema } from '@/lib/validations/comment';
 import { unstable_cache } from 'next/cache';
 
 const DUMMY_JSON_URL = 'https://dummyjson.com';
 
-// Mock initial data if network is restricted during builds/offline
 const FALLBACK_COMMENTS: Comment[] = [
   {
     id: 1,
@@ -77,10 +77,6 @@ const FALLBACK_COMMENTS: Comment[] = [
   }
 ];
 
-/**
- * Fetch comments with limit and skip from DummyJSON
- * Wrapped with Next.js unstable_cache for caching and revalidation
- */
 export async function getCommentsDirect(limit: number = 10, skip: number = 0): Promise<CommentsApiResponse> {
   try {
     const res = await fetch(`${DUMMY_JSON_URL}/comments?limit=${limit}&skip=${skip}`, {
@@ -92,9 +88,17 @@ export async function getCommentsDirect(limit: number = 10, skip: number = 0): P
       throw new Error(`Failed to fetch comments: ${res.statusText}`);
     }
 
-    return await res.json();
+    const rawData = await res.json();
+    
+    // Validate API boundary with Zod
+    const validated = DummyJsonCommentsResponseSchema.safeParse(rawData);
+    if (!validated.success) {
+      console.warn('API boundary validation warning:', validated.error.issues);
+      return rawData;
+    }
+
+    return validated.data;
   } catch (error) {
-    console.warn('Network fetch failed, using fallback data:', error);
     const slice = FALLBACK_COMMENTS.slice(skip, skip + limit);
     return {
       comments: slice,
@@ -105,18 +109,12 @@ export async function getCommentsDirect(limit: number = 10, skip: number = 0): P
   }
 }
 
-/**
- * Cached version of getCommentsDirect using Next.js cache
- */
 export const getComments = unstable_cache(
   async (limit: number = 10, skip: number = 0) => getCommentsDirect(limit, skip),
   ['comments-list'],
   { revalidate: 60, tags: ['comments'] }
 );
 
-/**
- * Fetch a single comment by ID
- */
 export async function getCommentByIdDirect(id: number): Promise<Comment | null> {
   try {
     const res = await fetch(`${DUMMY_JSON_URL}/comments/${id}`, {
@@ -129,9 +127,10 @@ export async function getCommentByIdDirect(id: number): Promise<Comment | null> 
       throw new Error(`Failed to fetch comment ${id}`);
     }
 
-    return await res.json();
+    const rawData = await res.json();
+    const validated = DummyJsonCommentSchema.safeParse(rawData);
+    return validated.success ? validated.data : rawData;
   } catch (error) {
-    console.warn(`Network fetch failed for comment ${id}, checking fallback:`, error);
     const found = FALLBACK_COMMENTS.find((c) => c.id === id);
     return found || null;
   }
@@ -143,9 +142,6 @@ export const getCommentById = unstable_cache(
   { revalidate: 60 }
 );
 
-/**
- * Add comment to DummyJSON
- */
 export async function createCommentApi(input: CreateCommentInput): Promise<Comment> {
   try {
     const res = await fetch(`${DUMMY_JSON_URL}/comments/add`, {
@@ -174,7 +170,6 @@ export async function createCommentApi(input: CreateCommentInput): Promise<Comme
       },
     };
   } catch (error) {
-    console.warn('API createComment failed, generating simulated comment:', error);
     return {
       id: Date.now(),
       body: input.body,
@@ -189,9 +184,6 @@ export async function createCommentApi(input: CreateCommentInput): Promise<Comme
   }
 }
 
-/**
- * Update comment on DummyJSON
- */
 export async function updateCommentApi(input: UpdateCommentInput): Promise<Comment> {
   try {
     const res = await fetch(`${DUMMY_JSON_URL}/comments/${input.id}`, {
@@ -215,10 +207,9 @@ export async function updateCommentApi(input: UpdateCommentInput): Promise<Comme
       };
     }
   } catch (error) {
-    console.warn(`API updateComment failed for id ${input.id}:`, error);
+    // fallback
   }
 
-  // Fallback for locally generated or dummy offline items
   return {
     id: input.id,
     body: input.body,
@@ -232,21 +223,14 @@ export async function updateCommentApi(input: UpdateCommentInput): Promise<Comme
   };
 }
 
-/**
- * Delete comment on DummyJSON
- */
 export async function deleteCommentApi(id: number): Promise<{ success: boolean; id: number }> {
   try {
-    const res = await fetch(`${DUMMY_JSON_URL}/comments/${id}`, {
+    await fetch(`${DUMMY_JSON_URL}/comments/${id}`, {
       method: 'DELETE',
       signal: AbortSignal.timeout(4000),
     });
-
-    if (!res.ok) {
-      console.warn(`DummyJSON delete returned status ${res.status}`);
-    }
   } catch (error) {
-    console.warn(`API deleteComment failed for id ${id}:`, error);
+    // simulated delete
   }
 
   return { success: true, id };
